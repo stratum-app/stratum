@@ -1,6 +1,16 @@
+export type TieClass = "strong" | "medium" | "weak";
 export type ConnectionStrength = "strong" | "moderate" | "weak" | "dormant";
-export type TieType = "strong" | "weak" | "bridge";
+export type TieType = TieClass; // legacy alias — use TieClass going forward
 export type CapitalType = "economic" | "cultural" | "social" | "institutional";
+export type RelationshipType =
+  | "professional"
+  | "mentor"
+  | "friend"
+  | "acquaintance"
+  | "family"
+  | "teacher"
+  | "classmate"
+  | "colleague";
 
 export interface Contact {
   id: string;
@@ -13,9 +23,11 @@ export interface Contact {
   location?: string;
   notes?: string;
   tags: string[];
-  last_contact?: string;
+  last_contact?: string;        // ISO date string (YYYY-MM-DD)
+  tie_strength: number;         // 1–5 numeric, authoritative
+  relationship_type?: RelationshipType;
+  // Derived/legacy — populated from scoring functions
   connection_strength: ConnectionStrength;
-  tie_type: TieType;
   social_capital_score: number;
   bridging_score: number;
   bonding_score: number;
@@ -23,21 +35,10 @@ export interface Contact {
   updated_at: string;
 }
 
-export interface Connection {
-  id: string;
-  user_id: string;
-  contact_a_id: string;
-  contact_b_id: string;
-  relationship_type: string;
-  strength: ConnectionStrength;
-  created_at: string;
-}
-
 export interface NetworkScore {
   overall: number;
   weak_tie_ratio: number;
   bridge_count: number;
-  cluster_count: number;
   reach_score: number;
   diversity_score: number;
   dormant_count: number;
@@ -66,6 +67,7 @@ export interface UserProfile {
   graduation_year?: number;
   bio?: string;
   avatar_url?: string;
+  goal?: string;
   onboarding_complete: boolean;
   subscription_tier: "free" | "pro";
   created_at: string;

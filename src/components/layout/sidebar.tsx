@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { StratumMark } from "@/components/ui/stratum-mark";
 
 const navItems = [
   {
@@ -62,15 +63,12 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="flex flex-col w-[200px] min-h-screen bg-[#0F0F0F] border-r border-[#1F1F1F]">
+    <aside className="flex flex-col w-[200px] min-h-screen bg-[#0A0A0A] border-r border-[#1F1F1F]">
       {/* Logo */}
       <div className="h-14 flex items-center px-5 border-b border-[#1F1F1F]">
-        <span
-          className="text-xl font-light tracking-[0.15em] text-[#F5F0E8] uppercase"
-          style={{ fontFamily: "Cormorant Garamond, Georgia, serif" }}
-        >
-          Stratum
-        </span>
+        <Link href="/" className="hover:opacity-75 transition-opacity">
+          <StratumMark size={28} />
+        </Link>
       </div>
 
       {/* Nav */}

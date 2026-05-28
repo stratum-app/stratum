@@ -2,18 +2,19 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Stratum — Go deeper than the surface.",
+  title: "Stratum — Personal Network Intelligence",
   description:
-    "Map your network. Score your social capital. Activate relationships that matter.",
+    "Map your existing connections, score your social capital, and get an AI-powered playbook to activate relationships that actually move the needle.",
   openGraph: {
-    title: "Stratum",
-    description: "Go deeper than the surface.",
+    title: "Stratum — Personal Network Intelligence",
+    description:
+      "Map your existing connections, score your social capital, and get an AI-powered playbook to activate relationships that actually move the needle.",
     type: "website",
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#0F0F0F",
+  themeColor: "#0A0A0A",
 };
 
 export default function RootLayout({
@@ -23,7 +24,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="h-full">
-      <body className="h-full bg-[#0F0F0F] text-[#F5F0E8] antialiased">
+      <body className="h-full bg-[#0A0A0A] text-[#F5F0E8] antialiased">
         {children}
       </body>
     </html>

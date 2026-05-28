@@ -1,18 +1,23 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { StratumMark } from "@/components/ui/stratum-mark";
+import { SiteFooter } from "@/components/layout/site-footer";
 
 export default function LandingPage() {
   return (
-    <div className="min-h-screen bg-[#0F0F0F] flex flex-col">
+    <div className="min-h-screen bg-[#0A0A0A] flex flex-col">
       {/* Nav */}
       <header className="h-16 flex items-center justify-between px-8 border-b border-[#1F1F1F]">
-        <span
-          className="text-xl font-light tracking-[0.15em] text-[#F5F0E8] uppercase"
-          style={{ fontFamily: "Cormorant Garamond, Georgia, serif" }}
-        >
-          Stratum
-        </span>
+        <Link href="/" className="hover:opacity-75 transition-opacity">
+          <StratumMark size={28} />
+        </Link>
         <div className="flex items-center gap-4">
+          <Link
+            href="/pricing"
+            className="text-sm text-[#8A8578] hover:text-[#F5F0E8] transition-colors font-body"
+          >
+            Pricing
+          </Link>
           <Link
             href="/auth/login"
             className="text-sm text-[#8A8578] hover:text-[#F5F0E8] transition-colors font-body"
@@ -27,22 +32,13 @@ export default function LandingPage() {
 
       {/* Hero */}
       <main className="flex-1 flex flex-col items-center justify-center px-6 text-center">
-        {/* Geological strata visual */}
-        <div className="mb-12 flex flex-col gap-[3px] w-64 opacity-40">
-          {[...Array(6)].map((_, i) => (
-            <div
-              key={i}
-              className="h-[6px] rounded-[1px]"
-              style={{
-                backgroundColor: i % 2 === 0 ? "#1E1E1E" : "#161616",
-                width: `${100 - i * 4}%`,
-                marginLeft: `${i * 2}%`,
-              }}
-            />
-          ))}
-        </div>
-
         <div className="max-w-2xl animate-fade-up">
+          <p
+            className="text-2xl font-light tracking-[0.35em] text-[#F5F0E8] uppercase mb-5"
+            style={{ fontFamily: "Cormorant Garamond, Georgia, serif" }}
+          >
+            STRATUM
+          </p>
           <p className="text-xs tracking-[0.3em] text-[#4A4640] uppercase font-body mb-5">
             Personal Network Intelligence
           </p>
@@ -75,10 +71,10 @@ export default function LandingPage() {
       <section className="border-t border-[#1F1F1F] py-6 px-8">
         <div className="max-w-4xl mx-auto grid grid-cols-3 gap-8 text-center">
           {[
-            { stat: "73%", label: "of opportunities come from weak ties" },
-            { stat: "6×", label: "more likely to succeed with warm intros" },
-            { stat: "91%", label: "of students underutilize their network" },
-          ].map(({ stat, label }) => (
+            { stat: "85%", label: "of jobs are filled through networking, not job boards", source: "LinkedIn / BLS" },
+            { stat: "70%", label: "of job openings are never publicly advertised", source: "CNBC" },
+            { stat: "83%", label: "of people who found jobs through a contact knew them only casually", source: "Granovetter, 1973" },
+          ].map(({ stat, label, source }) => (
             <div key={stat}>
               <p
                 className="text-2xl font-light text-[#C44820] mb-1"
@@ -86,7 +82,8 @@ export default function LandingPage() {
               >
                 {stat}
               </p>
-              <p className="text-xs text-[#4A4640] font-body leading-snug">{label}</p>
+              <p className="text-xs text-[#4A4640] font-body leading-snug mb-1">{label}</p>
+              <p className="text-[10px] text-[#2A2A2A] font-body">{source}</p>
             </div>
           ))}
         </div>
@@ -116,7 +113,7 @@ export default function LandingPage() {
                 body: "Your AI playbook surfaces dormant relationships, missing bridges, and high-leverage introductions — with ready-to-send messages.",
               },
             ].map(({ step, title, body }) => (
-              <div key={step} className="bg-[#0F0F0F] p-8">
+              <div key={step} className="bg-[#0A0A0A] p-8">
                 <p className="text-xs text-[#2A2A2A] font-body font-medium tracking-widest mb-4">
                   {step}
                 </p>
@@ -133,18 +130,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="border-t border-[#1F1F1F] py-6 px-8 flex items-center justify-between">
-        <span
-          className="text-sm font-light tracking-[0.15em] text-[#2A2A2A] uppercase"
-          style={{ fontFamily: "Cormorant Garamond, Georgia, serif" }}
-        >
-          Stratum
-        </span>
-        <p className="text-xs text-[#2A2A2A] font-body">
-          Built for students who take relationships seriously.
-        </p>
-      </footer>
+      <SiteFooter />
     </div>
   );
 }

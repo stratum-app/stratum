@@ -2,7 +2,7 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-void: #0F0F0F;
+  --color-void: #0A0A0A;
   --color-surface: #161616;
   --color-surface-2: #1E1E1E;
   --color-surface-3: #252525;
@@ -32,7 +32,7 @@
 }
 
 html {
-  background-color: #0F0F0F;
+  background-color: #0A0A0A;
   color: #F5F0E8;
   font-family: "DM Sans", system-ui, sans-serif;
   font-size: 15px;
@@ -44,7 +44,7 @@ html {
 
 body {
   min-height: 100vh;
-  background-color: #0F0F0F;
+  background-color: #0A0A0A;
 }
 
 /* Scrollbar */
@@ -86,7 +86,7 @@ body {
 
 /* React Flow overrides */
 .react-flow__background {
-  background-color: #0F0F0F !important;
+  background-color: #0A0A0A !important;
 }
 .react-flow__controls {
   background: #161616 !important;

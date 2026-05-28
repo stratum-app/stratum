@@ -1,10 +1,48 @@
+"use client";
+
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { createClient } from "@/lib/supabase/client";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(
+    searchParams.get("error") === "confirmation_failed"
+      ? "Email confirmation failed. Please try signing up again."
+      : null
+  );
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+
+    if (error) {
+      setError(
+        error.message === "Invalid login credentials"
+          ? "Incorrect email or password."
+          : error.message
+      );
+      setLoading(false);
+      return;
+    }
+
+    router.push("/dashboard");
+    router.refresh();
+  }
+
   return (
-    <div className="min-h-screen bg-[#0F0F0F] flex flex-col items-center justify-center px-4">
+    <div className="min-h-screen bg-[#0A0A0A] flex flex-col items-center justify-center px-4">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-10">
@@ -23,19 +61,32 @@ export default function LoginPage() {
 
         {/* Form */}
         <div className="bg-[#161616] border border-[#1F1F1F] rounded-[6px] p-7">
-          <form className="space-y-4">
+          <form className="space-y-4" onSubmit={handleSubmit}>
             <Input
               label="Email"
               type="email"
               placeholder="you@university.edu"
               autoComplete="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
             />
             <Input
               label="Password"
               type="password"
               placeholder="••••••••"
               autoComplete="current-password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
             />
+
+            {error && (
+              <div className="rounded-[4px] bg-red-950/30 border border-red-900/40 px-3 py-2.5">
+                <p className="text-xs text-red-400 font-body">{error}</p>
+              </div>
+            )}
+
             <div className="flex items-center justify-end">
               <Link
                 href="/auth/forgot-password"
@@ -44,7 +95,13 @@ export default function LoginPage() {
                 Forgot password?
               </Link>
             </div>
-            <Button variant="primary" size="md" className="w-full mt-2">
+            <Button
+              variant="primary"
+              size="md"
+              className="w-full"
+              type="submit"
+              loading={loading}
+            >
               Sign in
             </Button>
           </form>
@@ -58,7 +115,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button variant="outline" size="md" className="w-full gap-3">
+          <Button variant="outline" size="md" className="w-full gap-3" type="button">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
               <path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.6 2.41v2h2.6c1.52-1.4 2.38-3.46 2.38-5.87z" fill="#4285F4"/>
               <path d="M8 16c2.16 0 3.97-.72 5.3-1.94l-2.6-2c-.71.48-1.63.76-2.7.76-2.08 0-3.84-1.4-4.47-3.29H.86v2.06A8 8 0 008 16z" fill="#34A853"/>

@@ -6,48 +6,52 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { EmptyState } from "@/components/ui/empty-state";
-import { Contact, TieType, ConnectionStrength } from "@/types";
+import { ActPanel } from "@/components/network/act-panel";
+import { useContacts } from "@/lib/contacts-store";
+import { classifyTie, daysSince } from "@/lib/scoring";
+import type { Contact, TieClass } from "@/types";
+import Link from "next/link";
 
-const mockContacts: Contact[] = [
-  { id: "1", user_id: "u1", name: "Dr. Priya Sharma", role: "Professor of CS", organization: "MIT", industry: "Academia", tags: ["academia", "research", "ml"], tie_type: "bridge", connection_strength: "moderate", social_capital_score: 82, bridging_score: 91, bonding_score: 34, last_contact: "2025-09-15", created_at: "", updated_at: "" },
-  { id: "2", user_id: "u1", name: "Marcus Webb", role: "Product Manager", organization: "Figma", industry: "Tech", tags: ["design", "product"], tie_type: "weak", connection_strength: "weak", social_capital_score: 68, bridging_score: 74, bonding_score: 28, last_contact: "2025-11-02", created_at: "", updated_at: "" },
-  { id: "3", user_id: "u1", name: "Aisha Patel", role: "MBA Student", organization: "Stanford GSB", industry: "Finance", tags: ["mba", "finance", "consulting"], tie_type: "strong", connection_strength: "strong", social_capital_score: 75, bridging_score: 55, bonding_score: 88, last_contact: "2026-05-10", created_at: "", updated_at: "" },
-  { id: "4", user_id: "u1", name: "Lena Torres", role: "Founder", organization: "Stealth (YC W24)", industry: "Startup", tags: ["startup", "founder", "b2b"], tie_type: "weak", connection_strength: "weak", social_capital_score: 61, bridging_score: 66, bonding_score: 30, last_contact: "2026-01-20", created_at: "", updated_at: "" },
-  { id: "5", user_id: "u1", name: "James Okafor", role: "SWE Intern", organization: "Stripe", industry: "Tech", tags: ["engineering", "fintech"], tie_type: "strong", connection_strength: "strong", social_capital_score: 72, bridging_score: 50, bonding_score: 85, last_contact: "2026-05-18", created_at: "", updated_at: "" },
-  { id: "6", user_id: "u1", name: "Chris Lim", role: "VC Analyst", organization: "Sequoia", industry: "VC", tags: ["vc", "investing", "early-stage"], tie_type: "bridge", connection_strength: "weak", social_capital_score: 88, bridging_score: 95, bonding_score: 20, last_contact: "2025-10-30", created_at: "", updated_at: "" },
-  { id: "7", user_id: "u1", name: "Sofia Reyes", role: "Senior Designer", organization: "Apple", industry: "Tech", tags: ["design", "hardware"], tie_type: "weak", connection_strength: "moderate", social_capital_score: 55, bridging_score: 48, bonding_score: 42, last_contact: "2026-03-05", created_at: "", updated_at: "" },
-  { id: "8", user_id: "u1", name: "Nate Kim", role: "Quant Researcher", organization: "Two Sigma", industry: "Finance", tags: ["quant", "finance", "ml"], tie_type: "weak", connection_strength: "dormant", social_capital_score: 77, bridging_score: 70, bonding_score: 25, last_contact: "2025-03-12", created_at: "", updated_at: "" },
-];
-
-const strengthConfig: Record<ConnectionStrength, { label: string; color: string }> = {
+const tieClassConfig: Record<TieClass, { label: string; color: string }> = {
   strong: { label: "Strong", color: "#4A8C5C" },
-  moderate: { label: "Moderate", color: "#B8860B" },
+  medium: { label: "Medium", color: "#B8860B" },
   weak: { label: "Weak", color: "#C44820" },
-  dormant: { label: "Dormant", color: "#2A2A2A" },
 };
 
-const tieLabels: Record<TieType, string> = {
-  strong: "Strong",
-  weak: "Weak",
-  bridge: "Bridge",
-};
+function formatLastContact(last_contact: string | undefined): string {
+  if (!last_contact) return "—";
+  const days = daysSince(last_contact);
+  if (days === Infinity) return "—";
+  if (days === 0) return "Today";
+  if (days < 7) return `${days}d ago`;
+  if (days < 30) return `${Math.floor(days / 7)}w ago`;
+  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
+  return `${Math.floor(days / 365)}y ago`;
+}
 
 export default function ContactsPage() {
+  const { contacts } = useContacts();
   const [search, setSearch] = useState("");
   const [selectedIndustry, setSelectedIndustry] = useState<string>("all");
+  const [actContact, setActContact] = useState<Contact | null>(null);
 
-  const industries = ["all", ...Array.from(new Set(mockContacts.map((c) => c.industry || "Other")))];
+  const industries = [
+    "all",
+    ...Array.from(new Set(contacts.map((c) => c.industry || "Other").filter(Boolean))),
+  ];
 
-  const filtered = mockContacts.filter((c) => {
+  const filtered = contacts.filter((c) => {
     const matchSearch =
       search === "" ||
       c.name.toLowerCase().includes(search.toLowerCase()) ||
       c.role?.toLowerCase().includes(search.toLowerCase()) ||
       c.organization?.toLowerCase().includes(search.toLowerCase()) ||
-      c.tags.some((t) => t.toLowerCase().includes(search.toLowerCase()));
+      c.tags?.some((t) => t.toLowerCase().includes(search.toLowerCase()));
     const matchIndustry = selectedIndustry === "all" || c.industry === selectedIndustry;
     return matchSearch && matchIndustry;
   });
+
+  const dormantCount = contacts.filter((c) => daysSince(c.last_contact) > 90).length;
 
   return (
     <div className="p-8 max-w-5xl">
@@ -61,14 +65,16 @@ export default function ContactsPage() {
             Contacts
           </h1>
           <p className="text-sm text-[#4A4640] font-body">
-            {mockContacts.length} contacts &middot; {mockContacts.filter((c) => c.connection_strength === "dormant").length} dormant
+            {contacts.length} contact{contacts.length !== 1 ? "s" : ""} &middot; {dormantCount} dormant
           </p>
         </div>
-        <Button variant="primary" size="sm">+ Add contact</Button>
+        <Link href="/onboarding">
+          <Button variant="primary" size="sm">+ Add contact</Button>
+        </Link>
       </div>
 
       {/* Search + filter */}
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-3 mb-5 flex-wrap">
         <div className="flex-1 max-w-sm">
           <Input
             placeholder="Search contacts, roles, tags..."
@@ -76,7 +82,7 @@ export default function ContactsPage() {
             onChange={(e) => setSearch(e.target.value)}
           />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-1 flex-wrap">
           {industries.map((ind) => (
             <button
               key={ind}
@@ -93,8 +99,29 @@ export default function ContactsPage() {
         </div>
       </div>
 
-      {/* Table */}
-      {filtered.length === 0 ? (
+      {/* Empty state */}
+      {contacts.length === 0 ? (
+        <EmptyState
+          icon={
+            <svg width="48" height="48" fill="none" viewBox="0 0 48 48">
+              <circle cx="24" cy="18" r="8" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M8 42c0-8.837 7.163-16 16-16s16 7.163 16 16" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          }
+          title="No contacts yet"
+          description="Import your LinkedIn connections or add contacts manually to start mapping your network."
+          action={
+            <div className="flex items-center gap-2">
+              <Link href="/onboarding">
+                <Button variant="primary" size="sm">Import from LinkedIn</Button>
+              </Link>
+              <Link href="/onboarding?step=manual">
+                <Button variant="secondary" size="sm">Add manually</Button>
+              </Link>
+            </div>
+          }
+        />
+      ) : filtered.length === 0 ? (
         <EmptyState
           icon={
             <svg width="48" height="48" fill="none" viewBox="0 0 48 48">
@@ -106,9 +133,13 @@ export default function ContactsPage() {
           description={
             search
               ? `No contacts match "${search}". Try a different search.`
-              : "Add your first contact to start building your network map."
+              : `No contacts in ${selectedIndustry}. Try a different filter.`
           }
-          action={!search ? <Button variant="primary" size="sm">Add contact</Button> : undefined}
+          action={
+            <Button variant="ghost" size="sm" onClick={() => { setSearch(""); setSelectedIndustry("all"); }}>
+              Clear filters
+            </Button>
+          }
         />
       ) : (
         <Card>
@@ -117,7 +148,7 @@ export default function ContactsPage() {
             <span className="col-span-3 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Name</span>
             <span className="col-span-2 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Role</span>
             <span className="col-span-2 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Organization</span>
-            <span className="col-span-2 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Tags</span>
+            <span className="col-span-2 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Sector</span>
             <span className="col-span-1 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Tie</span>
             <span className="col-span-1 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Score</span>
             <span className="col-span-1 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Last</span>
@@ -125,60 +156,56 @@ export default function ContactsPage() {
 
           <div className="divide-y divide-[#1F1F1F]">
             {filtered.map((c) => {
-              const str = strengthConfig[c.connection_strength];
-              const lastDate = c.last_contact
-                ? new Date(c.last_contact).toLocaleDateString("en-US", { month: "short", day: "numeric" })
-                : "—";
+              const tie = classifyTie(c);
+              const cfg = tieClassConfig[tie];
+              const lastStr = formatLastContact(c.last_contact);
 
               return (
                 <div
                   key={c.id}
-                  className="grid grid-cols-12 gap-3 px-5 py-3 hover:bg-[#161616] transition-colors cursor-pointer items-center"
+                  className="grid grid-cols-12 gap-3 px-5 py-3 hover:bg-[#161616] transition-colors cursor-pointer items-center group"
+                  onClick={() => setActContact(c)}
                 >
                   <div className="col-span-3 flex items-center gap-2.5">
                     <div className="w-6 h-6 rounded-full bg-[#1E1E1E] border border-[#2A2A2A] flex items-center justify-center shrink-0">
                       <span className="text-[9px] font-medium text-[#8A8578] font-body">
-                        {c.name.split(" ").map((n) => n[0]).join("")}
+                        {c.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                       </span>
                     </div>
                     <span className="text-sm font-medium text-[#F5F0E8] font-body truncate">{c.name}</span>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-xs text-[#8A8578] font-body truncate block">{c.role}</span>
+                    <span className="text-xs text-[#8A8578] font-body truncate block">{c.role ?? "—"}</span>
                   </div>
                   <div className="col-span-2">
-                    <span className="text-xs text-[#4A4640] font-body truncate block">{c.organization}</span>
+                    <span className="text-xs text-[#4A4640] font-body truncate block">{c.organization ?? "—"}</span>
                   </div>
-                  <div className="col-span-2 flex gap-1 flex-wrap">
-                    {c.tags.slice(0, 2).map((tag) => (
-                      <Badge key={tag} variant="muted">{tag}</Badge>
-                    ))}
-                    {c.tags.length > 2 && (
-                      <Badge variant="muted">+{c.tags.length - 2}</Badge>
+                  <div className="col-span-2">
+                    {c.industry ? (
+                      <Badge variant="muted">{c.industry}</Badge>
+                    ) : (
+                      <span className="text-xs text-[#2A2A2A] font-body">—</span>
                     )}
                   </div>
                   <div className="col-span-1">
-                    <Badge variant={c.tie_type === "bridge" ? "default" : c.tie_type === "strong" ? "success" : "muted"}>
-                      {tieLabels[c.tie_type]}
+                    <Badge variant={tie === "strong" ? "success" : tie === "weak" ? "accent" : "warning"}>
+                      {cfg.label}
                     </Badge>
                   </div>
                   <div className="col-span-1 flex items-center gap-1.5">
                     <span
-                      className="w-1.5 h-1.5 rounded-full"
-                      style={{ backgroundColor: str.color }}
+                      className="w-1.5 h-1.5 rounded-full shrink-0"
+                      style={{ backgroundColor: cfg.color }}
                     />
                     <span
-                      className="text-sm font-light"
-                      style={{
-                        fontFamily: "Cormorant Garamond, Georgia, serif",
-                        color: "#F5F0E8",
-                      }}
+                      className="text-sm font-light text-[#F5F0E8]"
+                      style={{ fontFamily: "Cormorant Garamond, Georgia, serif" }}
                     >
                       {c.social_capital_score}
                     </span>
                   </div>
                   <div className="col-span-1">
-                    <span className="text-xs text-[#4A4640] font-body">{lastDate}</span>
+                    <span className="text-xs text-[#4A4640] font-body">{lastStr}</span>
                   </div>
                 </div>
               );
@@ -186,6 +213,13 @@ export default function ContactsPage() {
           </div>
         </Card>
       )}
+
+      {/* Act panel */}
+      <ActPanel
+        contact={actContact}
+        allContacts={contacts}
+        onClose={() => setActContact(null)}
+      />
     </div>
   );
 }
