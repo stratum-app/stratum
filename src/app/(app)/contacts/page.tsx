@@ -148,10 +148,11 @@ export default function ContactsPage() {
             <span className="col-span-3 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Name</span>
             <span className="col-span-2 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Role</span>
             <span className="col-span-2 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Organization</span>
-            <span className="col-span-2 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Sector</span>
+            <span className="col-span-1 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Sector</span>
             <span className="col-span-1 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Tie</span>
             <span className="col-span-1 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Score</span>
             <span className="col-span-1 text-[10px] text-[#4A4640] uppercase tracking-widest font-body">Last</span>
+            <span className="col-span-1 text-[10px] text-[#4A4640] uppercase tracking-widest font-body" />
           </div>
 
           <div className="divide-y divide-[#1F1F1F]">
@@ -163,16 +164,21 @@ export default function ContactsPage() {
               return (
                 <div
                   key={c.id}
-                  className="grid grid-cols-12 gap-3 px-5 py-3 hover:bg-[#161616] transition-colors cursor-pointer items-center group"
+                  className="grid grid-cols-12 gap-3 px-5 py-3 hover:bg-[#161616] transition-colors cursor-pointer items-center"
                   onClick={() => setActContact(c)}
                 >
-                  <div className="col-span-3 flex items-center gap-2.5">
+                  <div className="col-span-3 flex items-center gap-2.5 min-w-0">
                     <div className="w-6 h-6 rounded-full bg-[#1E1E1E] border border-[#2A2A2A] flex items-center justify-center shrink-0">
                       <span className="text-[9px] font-medium text-[#8A8578] font-body">
                         {c.name.split(" ").map((n) => n[0]).join("").slice(0, 2)}
                       </span>
                     </div>
-                    <span className="text-sm font-medium text-[#F5F0E8] font-body truncate">{c.name}</span>
+                    <div className="min-w-0">
+                      <span className="text-sm font-medium text-[#F5F0E8] font-body truncate block">{c.name}</span>
+                      {c.score_explanation && (
+                        <span className="text-[10px] text-[#2A2A2A] font-body truncate block">{c.score_explanation}</span>
+                      )}
+                    </div>
                   </div>
                   <div className="col-span-2">
                     <span className="text-xs text-[#8A8578] font-body truncate block">{c.role ?? "—"}</span>
@@ -180,7 +186,7 @@ export default function ContactsPage() {
                   <div className="col-span-2">
                     <span className="text-xs text-[#4A4640] font-body truncate block">{c.organization ?? "—"}</span>
                   </div>
-                  <div className="col-span-2">
+                  <div className="col-span-1">
                     {c.industry ? (
                       <Badge variant="muted">{c.industry}</Badge>
                     ) : (
@@ -206,6 +212,16 @@ export default function ContactsPage() {
                   </div>
                   <div className="col-span-1">
                     <span className="text-xs text-[#4A4640] font-body">{lastStr}</span>
+                  </div>
+                  <div className="col-span-1 flex justify-end" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-[10px] px-2"
+                      onClick={() => setActContact(c)}
+                    >
+                      Reach out
+                    </Button>
                   </div>
                 </div>
               );

@@ -86,6 +86,11 @@ export default function DashboardPage() {
 
   const score = networkScore(contacts);
 
+  // Top 3 actions: highest opportunity score
+  const topActions = [...contacts]
+    .sort((a, b) => opportunityScore(b, contacts) - opportunityScore(a, contacts))
+    .slice(0, 3);
+
   // Playbook: sort by opportunity score desc
   const playbookContacts = [...contacts]
     .sort((a, b) => opportunityScore(b, contacts) - opportunityScore(a, contacts))
@@ -116,6 +121,38 @@ export default function DashboardPage() {
           {contacts.length} contact{contacts.length !== 1 ? "s" : ""} &middot; {score.dormant_count} dormant
         </p>
       </div>
+
+      {/* Action banner */}
+      {topActions.length > 0 && (
+        <div className="mb-6 bg-[#0D0D0D] border border-[#2A2A2A] rounded-[6px] p-4">
+          <p className="text-[10px] text-[#4A4640] uppercase tracking-widest font-body mb-3">What to do next</p>
+          <div className="grid grid-cols-3 gap-3">
+            {topActions.map((c) => (
+              <div key={c.id} className="bg-[#161616] rounded-[4px] p-3 border border-[#1F1F1F]">
+                <div className="flex items-start justify-between gap-2 mb-1.5">
+                  <p className="text-xs font-medium text-[#F5F0E8] font-body leading-tight">{c.name}</p>
+                  <span
+                    className="w-1.5 h-1.5 rounded-full shrink-0 mt-0.5"
+                    style={{ backgroundColor: tieClassColors[classifyTie(c)] }}
+                  />
+                </div>
+                <p className="text-[10px] text-[#4A4640] font-body truncate mb-2">{c.role ?? c.organization ?? c.industry}</p>
+                <p className="text-[10px] text-[#8A8578] font-body leading-relaxed mb-3">
+                  {whyThisContact(c, contacts)}
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="w-full text-[10px]"
+                  onClick={() => setActContact(c)}
+                >
+                  Reach out
+                </Button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Score row */}
       <div className="grid grid-cols-4 gap-px bg-[#1F1F1F] rounded-[6px] overflow-hidden mb-6">
@@ -303,22 +340,23 @@ export default function DashboardPage() {
                             {rationale}
                           </p>
                         )}
+                        {contact.score_explanation && tab === "playbook" && (
+                          <p className="text-[10px] text-[#2A2A2A] font-body mt-1">{contact.score_explanation}</p>
+                        )}
                         {tab === "recent" && (
                           <p className="text-[11px] text-[#2A2A2A] font-body mt-1">
                             Last contact: <LastStr days={days} />
                           </p>
                         )}
                       </div>
-                      {tab === "playbook" && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="shrink-0 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => setActContact(contact)}
-                        >
-                          Act
-                        </Button>
-                      )}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0"
+                        onClick={(e) => { e.stopPropagation(); setActContact(contact); }}
+                      >
+                        Reach out
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>

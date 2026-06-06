@@ -2,18 +2,47 @@
 
 import { useState, useEffect, useCallback } from "react";
 import type { Contact } from "@/types";
-import { classifyTie, isDormant } from "@/lib/scoring";
+import { classifyTie, isDormant, relationshipScore, scoreExplanation } from "@/lib/scoring";
 
 const KEY = "stratum_contacts_v1";
 const PROFILE_KEY = "stratum_profile_v1";
+const AI_USAGE_KEY = "stratum_ai_usage_v1";
 
+// ── Freemium limits ───────────────────────────────────────────────────────────
+export const FREE_CONTACT_LIMIT = 25;
+export const FREE_AI_MONTHLY_LIMIT = 3;
+
+export interface AiUsage { count: number; month: string }
+
+export function getAiUsage(): AiUsage {
+  if (typeof window === "undefined") return { count: 0, month: "" };
+  try {
+    return JSON.parse(localStorage.getItem(AI_USAGE_KEY) ?? "null") ?? { count: 0, month: "" };
+  } catch { return { count: 0, month: "" }; }
+}
+
+export function incrementAiUsage(): void {
+  const now = new Date();
+  const month = `${now.getFullYear()}-${now.getMonth()}`;
+  const usage = getAiUsage();
+  const fresh = usage.month !== month ? { count: 0, month } : usage;
+  localStorage.setItem(AI_USAGE_KEY, JSON.stringify({ count: fresh.count + 1, month }));
+}
+
+export function isAiLimitReached(): boolean {
+  const now = new Date();
+  const month = `${now.getFullYear()}-${now.getMonth()}`;
+  const usage = getAiUsage();
+  if (usage.month !== month) return false;
+  return usage.count >= FREE_AI_MONTHLY_LIMIT;
+}
+
+// ── Contacts CRUD ─────────────────────────────────────────────────────────────
 export function getRawContacts(): Contact[] {
   if (typeof window === "undefined") return [];
   try {
     return JSON.parse(localStorage.getItem(KEY) ?? "[]") as Contact[];
-  } catch {
-    return [];
-  }
+  } catch { return []; }
 }
 
 export function saveRawContacts(contacts: Contact[]): void {
@@ -28,6 +57,11 @@ export function upsertContact(contact: Contact): void {
   if (idx >= 0) {
     all[idx] = { ...contact, updated_at: new Date().toISOString() };
   } else {
+    // Enforce free tier limit
+    if (all.length >= FREE_CONTACT_LIMIT) {
+      window.dispatchEvent(new CustomEvent("stratum:limit-reached", { detail: "contacts" }));
+      return;
+    }
     all.push({ ...contact, created_at: new Date().toISOString(), updated_at: new Date().toISOString() });
   }
   saveRawContacts(all);
@@ -37,9 +71,13 @@ export function deleteContact(id: string): void {
   saveRawContacts(getRawContacts().filter((c) => c.id !== id));
 }
 
-export function deriveContact(c: Contact): Contact {
+export function deriveContact(c: Contact, allRaw?: Contact[]): Contact {
+  const all = allRaw ?? getRawContacts();
   const tie = classifyTie(c);
   const dormant = isDormant(c);
+  const rScore = relationshipScore(c, all);
+  const explanation = scoreExplanation(c, all);
+
   return {
     ...c,
     connection_strength: dormant
@@ -49,8 +87,16 @@ export function deriveContact(c: Contact): Contact {
       : tie === "weak"
       ? "weak"
       : "moderate",
-    social_capital_score: Math.round(c.tie_strength * 12 + (c.industry ? 10 : 0)),
-    bridging_score: 0,
+    social_capital_score: rScore,
+    relationship_score: rScore,
+    score_explanation: explanation,
+    bridging_score: (() => {
+      const counts = new Map<string, number>();
+      all.forEach((x) => {
+        if (x.industry) counts.set(x.industry, (counts.get(x.industry) ?? 0) + 1);
+      });
+      return c.industry && (counts.get(c.industry) ?? 0) < 3 ? 80 : 30;
+    })(),
     bonding_score: Math.round(c.tie_strength * 15),
   };
 }
@@ -59,7 +105,8 @@ export function useContacts() {
   const [contacts, setContacts] = useState<Contact[]>([]);
 
   const reload = useCallback(() => {
-    setContacts(getRawContacts().map(deriveContact));
+    const raw = getRawContacts();
+    setContacts(raw.map((c) => deriveContact(c, raw)));
   }, []);
 
   useEffect(() => {
@@ -71,6 +118,7 @@ export function useContacts() {
   return { contacts, reload };
 }
 
+// ── Profile ───────────────────────────────────────────────────────────────────
 export interface UserGoalProfile {
   name: string;
   goal: string;
@@ -80,9 +128,7 @@ export function getProfile(): UserGoalProfile | null {
   if (typeof window === "undefined") return null;
   try {
     return JSON.parse(localStorage.getItem(PROFILE_KEY) ?? "null");
-  } catch {
-    return null;
-  }
+  } catch { return null; }
 }
 
 export function saveProfile(profile: UserGoalProfile): void {
@@ -90,12 +136,10 @@ export function saveProfile(profile: UserGoalProfile): void {
   localStorage.setItem(PROFILE_KEY, JSON.stringify(profile));
 }
 
+// ── LinkedIn CSV parser ───────────────────────────────────────────────────────
 export function parseLinkedInCSV(text: string): Partial<Contact>[] {
   const lines = text.split(/\r?\n/);
-  // LinkedIn prepends note rows — find actual header
-  const headerIdx = lines.findIndex((l) =>
-    l.toLowerCase().includes("first name")
-  );
+  const headerIdx = lines.findIndex((l) => l.toLowerCase().includes("first name"));
   if (headerIdx === -1) return [];
 
   const header = lines[headerIdx]
@@ -113,10 +157,10 @@ export function parseLinkedInCSV(text: string): Partial<Contact>[] {
     const line = lines[i].trim();
     if (!line) continue;
 
-    // Naive CSV split — handles quoted commas in company names
-    const row = line.match(/(".*?"|[^,]+)(?=,|$)/g)?.map((v) =>
-      v.replace(/^"|"$/g, "").trim()
-    ) ?? line.split(",");
+    const row =
+      line.match(/(".*?"|[^,]+)(?=,|$)/g)?.map((v) =>
+        v.replace(/^"|"$/g, "").trim()
+      ) ?? line.split(",");
 
     const firstName = col(row, "first name");
     const lastName = col(row, "last name");
@@ -127,8 +171,9 @@ export function parseLinkedInCSV(text: string): Partial<Contact>[] {
     const position = col(row, "position");
     const email = col(row, "email address");
     const connectedOn = col(row, "connected on");
+    // LinkedIn exports don't include profile URLs in basic CSV
+    // linkedin_url remains undefined until user adds it manually
 
-    // Parse "01 Jan 2024" → ISO date
     let last_contact: string | undefined;
     if (connectedOn) {
       const parsed = new Date(connectedOn);

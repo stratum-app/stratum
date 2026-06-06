@@ -1,6 +1,6 @@
 export type TieClass = "strong" | "medium" | "weak";
 export type ConnectionStrength = "strong" | "moderate" | "weak" | "dormant";
-export type TieType = TieClass; // legacy alias — use TieClass going forward
+export type TieType = TieClass;
 export type CapitalType = "economic" | "cultural" | "social" | "institutional";
 export type RelationshipType =
   | "professional"
@@ -12,11 +12,14 @@ export type RelationshipType =
   | "classmate"
   | "colleague";
 
+export type OutreachTone = "formal" | "professional" | "casual" | "friendly";
+
 export interface Contact {
   id: string;
   user_id: string;
   name: string;
   email?: string;
+  linkedin_url?: string;        // direct profile URL if known
   role?: string;
   organization?: string;
   industry?: string;
@@ -26,9 +29,11 @@ export interface Contact {
   last_contact?: string;        // ISO date string (YYYY-MM-DD)
   tie_strength: number;         // 1–5 numeric, authoritative
   relationship_type?: RelationshipType;
-  // Derived/legacy — populated from scoring functions
+  // Derived — populated from scoring functions
   connection_strength: ConnectionStrength;
   social_capital_score: number;
+  relationship_score?: number;      // 0–100 real formula
+  score_explanation?: string;       // one-liner explaining the score
   bridging_score: number;
   bonding_score: number;
   created_at: string;

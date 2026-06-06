@@ -1,23 +1,30 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { NextResponse } from "next/server";
 import { daysSince } from "@/lib/scoring";
-import type { Contact } from "@/types";
+import type { Contact, OutreachTone } from "@/types";
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+const TONE_INSTRUCTIONS: Record<OutreachTone, string> = {
+  formal: "Academic or official tone. Professional distance, no contractions, full sentences. Appropriate for professors, senior executives, or first-time cold outreach.",
+  professional: "Standard business tone. Confident and clear, warm but measured. Appropriate for most workplace contacts.",
+  casual: "Friendly and approachable. Conversational, can use contractions, relaxed phrasing. Appropriate for people you've met before.",
+  friendly: "Close and personal. Reads like a message to someone you know well. Warm, direct, human.",
+};
 
 export async function POST(request: Request) {
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json({ error: "API key not configured" }, { status: 500 });
   }
 
-  let body: { contact: Contact; userGoal?: string };
+  let body: { contact: Contact; userGoal?: string; tone?: OutreachTone };
   try {
     body = await request.json();
   } catch {
     return NextResponse.json({ error: "Invalid request body" }, { status: 400 });
   }
 
-  const { contact, userGoal } = body;
+  const { contact, userGoal, tone = "professional" } = body;
   const days = daysSince(contact.last_contact);
   const lastContactStr =
     days === Infinity
@@ -28,7 +35,7 @@ export async function POST(request: Request) {
       ? `${Math.floor(days / 30)} months ago`
       : `${days} days ago`;
 
-  const prompt = `You are helping a student write a genuine, human-sounding outreach message to a professional contact.
+  const prompt = `You are helping someone write a genuine, human-sounding outreach message to a professional contact.
 
 Contact:
 - Name: ${contact.name}
@@ -39,13 +46,16 @@ Contact:
 - Tie strength: ${contact.tie_strength}/5
 - Last contact: ${lastContactStr}
 
-Student's goal: ${userGoal ?? "general networking and career development"}
+User's goal: ${userGoal ?? "general networking and career development"}
+
+Tone: ${tone.charAt(0).toUpperCase() + tone.slice(1)}
+${TONE_INSTRUCTIONS[tone]}
 
 Write a short, genuine outreach message (2–4 sentences). Rules:
+- Match the tone exactly — this is the most important instruction
 - Sound like a real person wrote it — not a template or AI
 - Reference their specific role or sector naturally
 - One clear, low-pressure ask at the end
-- Warm but not sycophantic
 - Do NOT start with "Hi [Name]," — start mid-thought
 - No placeholder text like [University] or [Your Name]
 

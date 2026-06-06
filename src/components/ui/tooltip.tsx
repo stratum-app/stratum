@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 
 interface TooltipProps {
@@ -12,28 +12,65 @@ interface TooltipProps {
 
 export function Tooltip({ content, children, className, width = "w-56" }: TooltipProps) {
   const [visible, setVisible] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState<{ above: boolean; alignRight: boolean }>({
+    above: true,
+    alignRight: false,
+  });
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const tipRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!visible || !wrapRef.current) return;
+    const rect = wrapRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    // Flip above/below: show below if less than 120px above
+    const above = rect.top > 120;
+    // Align right if tooltip would overflow right edge
+    // Approximate tooltip width from the width prop (e.g. "w-56" = 224px)
+    const tipWidth = 224;
+    const alignRight = rect.left + tipWidth / 2 > vw - 16;
+    setPos({ above, alignRight });
+  }, [visible]);
+
+  const positionClasses = cn(
+    "absolute z-50",
+    pos.above ? "bottom-full mb-2" : "top-full mt-2",
+    pos.alignRight ? "right-0" : "left-1/2 -translate-x-1/2"
+  );
 
   return (
     <div
-      ref={ref}
+      ref={wrapRef}
       className={cn("relative inline-flex items-center", className)}
       onMouseEnter={() => setVisible(true)}
       onMouseLeave={() => setVisible(false)}
     >
       {children}
       {visible && (
-        <div
-          className={cn(
-            "absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50",
-            width,
-            "bg-[#1E1E1E] border border-[#2A2A2A] rounded-[4px]",
-            "p-3 text-xs text-[#8A8578] font-body leading-relaxed shadow-xl",
-            "pointer-events-none"
+        <div ref={tipRef} className={positionClasses}>
+          <div
+            className={cn(
+              width,
+              "bg-[#1E1E1E] border border-[#2A2A2A] rounded-[4px]",
+              "p-3 text-xs text-[#8A8578] font-body leading-relaxed shadow-xl",
+              "pointer-events-none"
+            )}
+          >
+            {content}
+          </div>
+          {/* Arrow */}
+          {pos.above ? (
+            <div className={cn(
+              "absolute top-full border-4 border-transparent border-t-[#2A2A2A]",
+              pos.alignRight ? "right-3" : "left-1/2 -translate-x-1/2"
+            )} />
+          ) : (
+            <div className={cn(
+              "absolute bottom-full border-4 border-transparent border-b-[#2A2A2A]",
+              pos.alignRight ? "right-3" : "left-1/2 -translate-x-1/2"
+            )} />
           )}
-        >
-          {content}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-[#2A2A2A]" />
         </div>
       )}
     </div>

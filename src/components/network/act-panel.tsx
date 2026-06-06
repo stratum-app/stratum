@@ -11,8 +11,14 @@ import {
   outreachChannel,
   whyThisContact,
 } from "@/lib/scoring";
-import { getProfile } from "@/lib/contacts-store";
-import type { Contact } from "@/types";
+import {
+  getProfile,
+  isAiLimitReached,
+  incrementAiUsage,
+  getAiUsage,
+  FREE_AI_MONTHLY_LIMIT,
+} from "@/lib/contacts-store";
+import type { Contact, OutreachTone } from "@/types";
 
 interface ActPanelProps {
   contact: Contact | null;
@@ -20,17 +26,15 @@ interface ActPanelProps {
   onClose: () => void;
 }
 
-const tieClassColors = {
-  strong: "#4A8C5C",
-  medium: "#B8860B",
-  weak: "#C44820",
-};
+const tieClassColors = { strong: "#4A8C5C", medium: "#B8860B", weak: "#C44820" };
+const tieClassLabels = { strong: "Strong tie", medium: "Medium tie", weak: "Weak tie" };
 
-const tieClassLabels = {
-  strong: "Strong tie",
-  medium: "Medium tie",
-  weak: "Weak tie",
-};
+const TONES: { value: OutreachTone; label: string; desc: string }[] = [
+  { value: "formal",       label: "Formal",       desc: "Academic / official" },
+  { value: "professional", label: "Professional", desc: "Business standard" },
+  { value: "casual",       label: "Casual",       desc: "Warm, approachable" },
+  { value: "friendly",     label: "Friendly",     desc: "Close, personal" },
+];
 
 function CopyIcon() {
   return (
@@ -54,8 +58,15 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [tone, setTone] = useState<OutreachTone>("professional");
+  const [limitReached, setLimitReached] = useState(false);
 
-  const generateMessage = useCallback(async (c: Contact) => {
+  const generateMessage = useCallback(async (c: Contact, selectedTone: OutreachTone) => {
+    if (isAiLimitReached()) {
+      setLimitReached(true);
+      return;
+    }
+    setLimitReached(false);
     setLoading(true);
     setError(null);
     setMessage("");
@@ -65,10 +76,11 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
       const res = await fetch("/api/generate-message", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ contact: c, userGoal: profile?.goal }),
+        body: JSON.stringify({ contact: c, userGoal: profile?.goal, tone: selectedTone }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
+      incrementAiUsage();
       setMessage(data.message);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to generate message");
@@ -82,9 +94,9 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
       setMessage("");
       setError(null);
       setCopied(false);
-      generateMessage(contact);
+      setLimitReached(isAiLimitReached());
     }
-  }, [contact, generateMessage]);
+  }, [contact]);
 
   async function copyMessage() {
     if (!message) return;
@@ -93,11 +105,17 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  const usage = getAiUsage();
+  const usageThisMonth = (() => {
+    const now = new Date();
+    const month = `${now.getFullYear()}-${now.getMonth()}`;
+    return usage.month === month ? usage.count : 0;
+  })();
+
   return (
     <AnimatePresence>
       {contact && (
         <>
-          {/* Backdrop */}
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
@@ -106,13 +124,12 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
             onClick={onClose}
           />
 
-          {/* Panel */}
           <motion.div
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", damping: 32, stiffness: 320, mass: 0.8 }}
-            className="fixed right-0 top-0 h-full w-[380px] z-50 bg-[#161616] border-l border-[#2A2A2A] flex flex-col"
+            className="fixed right-0 top-0 h-full w-[400px] z-50 bg-[#161616] border-l border-[#2A2A2A] flex flex-col"
           >
             {/* Header */}
             <div className="flex items-start justify-between p-5 border-b border-[#1F1F1F]">
@@ -130,26 +147,16 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
                   {(() => {
                     const tie = classifyTie(contact);
                     return (
-                      <Badge
-                        variant={tie === "strong" ? "success" : tie === "weak" ? "accent" : "warning"}
-                      >
-                        <span
-                          className="w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: tieClassColors[tie] }}
-                        />
+                      <Badge variant={tie === "strong" ? "success" : tie === "weak" ? "accent" : "warning"}>
+                        <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: tieClassColors[tie] }} />
                         {tieClassLabels[tie]}
                       </Badge>
                     );
                   })()}
-                  {contact.industry && (
-                    <Badge variant="muted">{contact.industry}</Badge>
-                  )}
+                  {contact.industry && <Badge variant="muted">{contact.industry}</Badge>}
                 </div>
               </div>
-              <button
-                onClick={onClose}
-                className="text-[#4A4640] hover:text-[#8A8578] transition-colors p-1 -mt-0.5"
-              >
+              <button onClick={onClose} className="text-[#4A4640] hover:text-[#8A8578] transition-colors p-1 -mt-0.5">
                 <svg width="14" height="14" fill="none" viewBox="0 0 14 14">
                   <path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
                 </svg>
@@ -157,11 +164,9 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
             </div>
 
             <div className="flex-1 overflow-y-auto p-5 space-y-5">
-              {/* WHY */}
+              {/* Why */}
               <div>
-                <p className="text-[10px] text-[#4A4640] uppercase tracking-widest font-body mb-2">
-                  Why now
-                </p>
+                <p className="text-[10px] text-[#4A4640] uppercase tracking-widest font-body mb-2">Why now</p>
                 <div className="bg-[#1E1E1E] rounded-[4px] p-3 border border-[#2A2A2A]">
                   <p className="text-xs text-[#8A8578] font-body leading-relaxed">
                     {whyThisContact(contact, allContacts)}
@@ -169,22 +174,16 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
                 </div>
               </div>
 
-              {/* Stats row */}
+              {/* Stats */}
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-[#1E1E1E] rounded-[4px] p-2.5 text-center">
-                  <p
-                    className="text-lg font-light text-[#F5F0E8]"
-                    style={{ fontFamily: "Cormorant Garamond, Georgia, serif" }}
-                  >
+                  <p className="text-lg font-light text-[#F5F0E8]" style={{ fontFamily: "Cormorant Garamond, Georgia, serif" }}>
                     {contact.tie_strength}/5
                   </p>
                   <p className="text-[9px] text-[#4A4640] uppercase tracking-widest font-body">Strength</p>
                 </div>
                 <div className="bg-[#1E1E1E] rounded-[4px] p-2.5 text-center">
-                  <p
-                    className="text-lg font-light text-[#F5F0E8]"
-                    style={{ fontFamily: "Cormorant Garamond, Georgia, serif" }}
-                  >
+                  <p className="text-lg font-light text-[#F5F0E8]" style={{ fontFamily: "Cormorant Garamond, Georgia, serif" }}>
                     {(() => {
                       const d = daysSince(contact.last_contact);
                       return d === Infinity ? "—" : d > 365 ? `${Math.floor(d / 365)}y` : d > 30 ? `${Math.floor(d / 30)}mo` : `${d}d`;
@@ -193,24 +192,24 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
                   <p className="text-[9px] text-[#4A4640] uppercase tracking-widest font-body">Since contact</p>
                 </div>
                 <div className="bg-[#1E1E1E] rounded-[4px] p-2.5 text-center">
-                  <p
-                    className="text-lg font-light text-[#F5F0E8]"
-                    style={{ fontFamily: "Cormorant Garamond, Georgia, serif" }}
-                  >
-                    {contact.social_capital_score}
+                  <p className="text-lg font-light text-[#F5F0E8]" style={{ fontFamily: "Cormorant Garamond, Georgia, serif" }}>
+                    {contact.relationship_score ?? contact.social_capital_score}
                   </p>
-                  <p className="text-[9px] text-[#4A4640] uppercase tracking-widest font-body">Capital</p>
+                  <p className="text-[9px] text-[#4A4640] uppercase tracking-widest font-body">Score</p>
                 </div>
               </div>
+
+              {/* Score explanation */}
+              {contact.score_explanation && (
+                <p className="text-[11px] text-[#4A4640] font-body">{contact.score_explanation}</p>
+              )}
 
               {/* Outreach channel */}
               {(() => {
                 const ch = outreachChannel(contact);
                 return (
                   <div>
-                    <p className="text-[10px] text-[#4A4640] uppercase tracking-widest font-body mb-2">
-                      Recommended channel
-                    </p>
+                    <p className="text-[10px] text-[#4A4640] uppercase tracking-widest font-body mb-2">Recommended channel</p>
                     <div className="flex items-center gap-2">
                       <span className="text-xs font-medium text-[#F5F0E8] font-body bg-[#1E1E1E] border border-[#2A2A2A] px-2.5 py-1 rounded-[4px]">
                         {ch.primary}
@@ -226,19 +225,55 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
                 );
               })()}
 
+              {/* Tone selector */}
+              <div>
+                <p className="text-[10px] text-[#4A4640] uppercase tracking-widest font-body mb-2">Message tone</p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {TONES.map((t) => (
+                    <button
+                      key={t.value}
+                      onClick={() => setTone(t.value)}
+                      title={t.desc}
+                      className={cn(
+                        "py-1.5 px-2 rounded-[4px] text-[11px] font-body font-medium border transition-all duration-100",
+                        tone === t.value
+                          ? "bg-[#1E1E1E] border-[#C44820]/40 text-[#F5F0E8]"
+                          : "bg-transparent border-[#1F1F1F] text-[#4A4640] hover:border-[#2A2A2A] hover:text-[#8A8578]"
+                      )}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
               {/* AI Message */}
               <div>
                 <div className="flex items-center justify-between mb-2">
-                  <p className="text-[10px] text-[#4A4640] uppercase tracking-widest font-body">
-                    AI outreach message
-                  </p>
-                  <button
-                    onClick={() => generateMessage(contact)}
-                    disabled={loading}
-                    className="text-[10px] text-[#4A4640] hover:text-[#8A8578] font-body transition-colors disabled:opacity-40"
-                  >
-                    Regenerate ↺
-                  </button>
+                  <p className="text-[10px] text-[#4A4640] uppercase tracking-widest font-body">AI outreach message</p>
+                  {!limitReached && (
+                    <button
+                      onClick={() => generateMessage(contact, tone)}
+                      disabled={loading}
+                      className="text-[10px] text-[#4A4640] hover:text-[#8A8578] font-body transition-colors disabled:opacity-40"
+                    >
+                      Regenerate ↺
+                    </button>
+                  )}
+                </div>
+
+                {/* Usage meter */}
+                <div className="flex items-center gap-1.5 mb-2">
+                  {[...Array(FREE_AI_MONTHLY_LIMIT)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="h-1 flex-1 rounded-full"
+                      style={{ backgroundColor: i < usageThisMonth ? "#C44820" : "#2A2A2A" }}
+                    />
+                  ))}
+                  <span className="text-[10px] text-[#4A4640] font-body shrink-0">
+                    {usageThisMonth}/{FREE_AI_MONTHLY_LIMIT} free
+                  </span>
                 </div>
 
                 <div className="bg-[#1E1E1E] rounded-[4px] border border-[#2A2A2A] min-h-[100px] relative">
@@ -249,16 +284,23 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
                           <div
                             key={i}
                             className="w-1.5 h-1.5 bg-[#C44820] rounded-full"
-                            style={{
-                              animation: "pulse-dot 1.2s ease infinite",
-                              animationDelay: `${i * 0.2}s`,
-                            }}
+                            style={{ animation: "pulse-dot 1.2s ease infinite", animationDelay: `${i * 0.2}s` }}
                           />
                         ))}
                       </div>
                     </div>
                   )}
-                  {error && !loading && (
+                  {limitReached && !loading && (
+                    <div className="p-3.5 text-center">
+                      <p className="text-xs text-[#8A8578] font-body mb-3">
+                        You&apos;ve used your {FREE_AI_MONTHLY_LIMIT} free messages this month.
+                      </p>
+                      <Button variant="primary" size="sm" onClick={() => window.location.href = "/pricing"}>
+                        Upgrade to Pro
+                      </Button>
+                    </div>
+                  )}
+                  {error && !loading && !limitReached && (
                     <div className="p-3.5">
                       <p className="text-xs text-red-400 font-body">{error}</p>
                     </div>
@@ -268,11 +310,24 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
                       &ldquo;{message}&rdquo;
                     </p>
                   )}
+                  {!message && !loading && !error && !limitReached && (
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <button
+                        onClick={() => generateMessage(contact, tone)}
+                        className="text-xs text-[#4A4640] hover:text-[#8A8578] font-body transition-colors flex items-center gap-1.5"
+                      >
+                        <svg width="12" height="12" fill="none" viewBox="0 0 12 12">
+                          <path d="M6 1v10M1 6h10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                        </svg>
+                        Generate message
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
 
-            {/* Action buttons */}
+            {/* Actions */}
             <div className="p-5 border-t border-[#1F1F1F] space-y-2">
               <div className="grid grid-cols-2 gap-2">
                 <Button
@@ -282,14 +337,7 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
                   onClick={copyMessage}
                   disabled={!message || loading}
                 >
-                  {copied ? (
-                    "Copied!"
-                  ) : (
-                    <>
-                      <CopyIcon />
-                      Copy message
-                    </>
-                  )}
+                  {copied ? "Copied!" : <><CopyIcon />Copy message</>}
                 </Button>
                 <Button
                   variant="secondary"
@@ -297,12 +345,15 @@ export function ActPanel({ contact, allContacts, onClose }: ActPanelProps) {
                   className="gap-1.5"
                   onClick={() => {
                     const ch = outreachChannel(contact);
-                    const href = ch.primaryHref?.(contact);
+                    // Use stored linkedin_url if available; else search is clearly labelled
+                    const href = contact.linkedin_url
+                      ? contact.linkedin_url
+                      : ch.primaryHref?.(contact);
                     if (href) window.open(href, "_blank", "noopener");
                   }}
                 >
                   <LinkedInIcon />
-                  Open LinkedIn
+                  {contact.linkedin_url ? "Open LinkedIn" : "Search LinkedIn"}
                 </Button>
               </div>
               {contact.email && (

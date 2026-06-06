@@ -51,10 +51,7 @@ export function overallScore(contacts: Contact[]): number {
   const r = reachScore(contacts);
   const d = diversityScore(contacts);
   const b = bridgingRatio(contacts);
-  const dormPenalty = Math.min(
-    30,
-    (dormantCount(contacts) / contacts.length) * 30
-  );
+  const dormPenalty = Math.min(30, (dormantCount(contacts) / contacts.length) * 30);
   return Math.max(0, Math.round(r * 0.4 + d * 0.3 + b * 0.3 - dormPenalty));
 }
 
@@ -64,6 +61,50 @@ export function opportunityScore(c: Contact, all: Contact[]): number {
   const sectorGap = sectorCount < 3 ? 2 : 1;
   const strengthInverse = 6 - (c.tie_strength ?? 3);
   return dormant * sectorGap * strengthInverse;
+}
+
+// ── Real relationship score (0–100) ──────────────────────────────────────────
+// Weights: recency 50% · tie strength 30% · bridge value 20%
+export function relationshipScore(c: Contact, all: Contact[]): number {
+  const days = daysSince(c.last_contact);
+
+  // Recency: full score if contacted today, zero if never / 365+ days ago
+  const recencyRaw = days === Infinity ? 0 : Math.max(0, 1 - days / 365);
+  const recencyScore = recencyRaw * 100;
+
+  // Tie strength: 1→0, 5→100
+  const tieScore = ((c.tie_strength ?? 3) - 1) * 25;
+
+  // Bridge value: rare sector = high score
+  const sectorCount = c.industry
+    ? all.filter((x) => x.industry === c.industry).length
+    : all.length;
+  const bridgeScore = sectorCount <= 1 ? 100 : sectorCount <= 3 ? 60 : 20;
+
+  return Math.round(recencyScore * 0.5 + tieScore * 0.3 + bridgeScore * 0.2);
+}
+
+export function scoreExplanation(c: Contact, all: Contact[]): string {
+  const days = daysSince(c.last_contact);
+  const tie = classifyTie(c);
+  const sectorCount = c.industry
+    ? all.filter((x) => x.industry === c.industry).length
+    : null;
+
+  const parts: string[] = [];
+
+  if (days === Infinity) parts.push("Never contacted");
+  else if (days > 180) parts.push(`Last contacted ${Math.floor(days / 30)}mo ago`);
+  else if (days > 30) parts.push(`Last contacted ${Math.floor(days / 30)}mo ago`);
+  else parts.push(`Contacted ${days}d ago`);
+
+  parts.push(
+    tie === "strong" ? "Strong tie" : tie === "weak" ? "Weak tie" : "Medium tie"
+  );
+
+  if (sectorCount !== null && sectorCount <= 2) parts.push("Bridge contact");
+
+  return parts.join(" · ");
 }
 
 export function networkScore(contacts: Contact[]): NetworkScore {
@@ -101,14 +142,18 @@ export type OutreachChannel = {
 };
 
 export function outreachChannel(c: Contact): OutreachChannel {
+  // Prefer stored LinkedIn URL; fall back to name search (clearly a fallback)
+  const linkedinHref = (contact: Contact): string =>
+    contact.linkedin_url ??
+    `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(contact.name)}`;
+
   switch (c.relationship_type) {
     case "professional":
     case "mentor":
     case "colleague":
       return {
         primary: "LinkedIn",
-        primaryHref: (c) =>
-          `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(c.name)}`,
+        primaryHref: linkedinHref,
         secondary: c.email ? "Email" : undefined,
       };
     case "teacher":
@@ -126,8 +171,7 @@ export function outreachChannel(c: Contact): OutreachChannel {
     default:
       return {
         primary: "LinkedIn",
-        primaryHref: (c) =>
-          `https://www.linkedin.com/search/results/people/?keywords=${encodeURIComponent(c.name)}`,
+        primaryHref: linkedinHref,
         secondary: c.email ? "Email" : undefined,
       };
   }

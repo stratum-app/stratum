@@ -1,32 +1,26 @@
 import type { SVGProps } from "react";
 
+// 5 clean strata bars — simple, geological, intentional
 const BARS = [
-  { x: 68, w: 80  },
-  { x: 30, w: 130 },
-  { x: 0,  w: 166 },
-  { x: 20, w: 144 },
-  { x: 58, w: 88  },
-  { x: 40, w: 124 },
-  { x: 34, w: 156 },
-  { x: 40, w: 136 },
-  { x: 58, w: 88  },
+  { x: 12, w: 56 },
+  { x: 4,  w: 72 },
+  { x: 0,  w: 80 },
+  { x: 4,  w: 64 },
+  { x: 12, w: 48 },
 ];
 
-const COLORS = [
-  "#D4552C", "#C34C27", "#B24322", "#A03A1C",
-  "#8F3217", "#7E2912", "#6D200D", "#5B1707", "#4A0E02",
-];
+const COLORS = ["#D4552C", "#B84420", "#9B3415", "#7E240B", "#621503"];
 
-const BAR_H = 8;
-const GAP   = 2.5;
-const VB_W  = 190;
-const VB_H  = 9 * BAR_H + 8 * GAP; // 92
+const BAR_H = 5;
+const GAP   = 3;
+const VB_W  = 80;
+const VB_H  = 5 * BAR_H + 4 * GAP; // 37
 
 interface StratumMarkProps extends SVGProps<SVGSVGElement> {
   size?: number;
 }
 
-export function StratumMark({ size = 32, className, ...rest }: StratumMarkProps) {
+export function StratumMark({ size = 28, className, ...rest }: StratumMarkProps) {
   const w = Math.round((size * VB_W) / VB_H);
   return (
     <svg
@@ -46,7 +40,7 @@ export function StratumMark({ size = 32, className, ...rest }: StratumMarkProps)
           y={i * (BAR_H + GAP)}
           width={bar.w}
           height={BAR_H}
-          rx={2.5}
+          rx={2}
           fill={COLORS[i]}
         />
       ))}

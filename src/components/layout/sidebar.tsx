@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { StratumMark } from "@/components/ui/stratum-mark";
+import { createClient } from "@/lib/supabase/client";
 
 const navItems = [
   {
@@ -61,6 +62,13 @@ const navItems = [
 
 export function Sidebar() {
   const pathname = usePathname();
+  const router = useRouter();
+  const supabase = createClient();
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+    router.push("/auth/login");
+  }
 
   return (
     <aside className="flex flex-col w-[200px] min-h-screen bg-[#0A0A0A] border-r border-[#1F1F1F]">
@@ -98,7 +106,7 @@ export function Sidebar() {
         </div>
       </nav>
 
-      {/* Bottom: settings + score teaser */}
+      {/* Bottom: settings + sign out */}
       <div className="py-4 px-3 border-t border-[#1F1F1F] space-y-0.5">
         <Link
           href="/settings"
@@ -121,6 +129,15 @@ export function Sidebar() {
           </svg>
           Settings
         </Link>
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center gap-2.5 h-8 px-2.5 rounded-[4px] text-sm font-body font-medium text-[#4A4640] hover:text-[#8A8578] hover:bg-[#161616] transition-all duration-100"
+        >
+          <svg width="16" height="16" fill="none" viewBox="0 0 16 16">
+            <path d="M6 2H3a1 1 0 00-1 1v10a1 1 0 001 1h3M10 11l3-3-3-3M13 8H6" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+          Sign out
+        </button>
       </div>
     </aside>
   );
