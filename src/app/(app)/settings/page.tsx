@@ -19,6 +19,15 @@ export default function SettingsPage() {
   const [goal, setGoal] = useState("");
   const [saved, setSaved] = useState(false);
 
+  // Gmail integration state
+  const [gmailStatus, setGmailStatus] = useState<{
+    connected: boolean;
+    email: string | null;
+    loading: boolean;
+  }>({ connected: false, email: null, loading: true });
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [gmailBanner, setGmailBanner] = useState<"denied" | "error" | null>(null);
+
   useEffect(() => {
     const profile = getProfile();
     if (profile?.name) setName(profile.name);
@@ -27,7 +36,32 @@ export default function SettingsPage() {
     supabase.auth.getUser().then(({ data }) => {
       if (data.user?.email) setEmail(data.user.email);
     });
+
+    // Check Gmail connection status
+    fetch("/api/gmail/status")
+      .then((r) => r.json())
+      .then((d) => setGmailStatus({ connected: d.connected, email: d.email, loading: false }))
+      .catch(() => setGmailStatus({ connected: false, email: null, loading: false }));
+
+    // Show banner if redirected from OAuth flow
+    const params = new URLSearchParams(window.location.search);
+    const gmail = params.get("gmail");
+    if (gmail === "denied" || gmail === "error") {
+      setGmailBanner(gmail);
+      // Remove query param from URL without triggering navigation
+      window.history.replaceState({}, "", "/settings");
+    }
   }, []);
+
+  async function handleDisconnectGmail() {
+    setDisconnecting(true);
+    try {
+      await fetch("/api/gmail/disconnect", { method: "POST" });
+      setGmailStatus({ connected: false, email: null, loading: false });
+    } finally {
+      setDisconnecting(false);
+    }
+  }
 
   function handleSave() {
     saveProfile({ name, goal });
@@ -204,6 +238,26 @@ export default function SettingsPage() {
             <h2 className="text-sm font-medium text-[#F5F0E8] font-body">Integrations</h2>
           </CardHeader>
           <CardContent className="space-y-3">
+            {/* Gmail error banner */}
+            {gmailBanner && (
+              <div className="bg-[#1A0D0D] border border-[#C44820]/30 rounded-[4px] px-3 py-2.5 flex items-center justify-between">
+                <p className="text-xs text-[#C44820] font-body">
+                  {gmailBanner === "denied"
+                    ? "Google access was denied. No contacts were imported."
+                    : "Something went wrong during Gmail authorization."}
+                </p>
+                <button
+                  onClick={() => setGmailBanner(null)}
+                  className="text-[#C44820]/60 hover:text-[#C44820] transition-colors ml-3 shrink-0"
+                >
+                  <svg width="12" height="12" fill="none" viewBox="0 0 12 12">
+                    <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.25" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+            )}
+
+            {/* LinkedIn */}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="w-8 h-8 bg-[#1E1E1E] border border-[#2A2A2A] rounded-[4px] flex items-center justify-center">
@@ -220,20 +274,81 @@ export default function SettingsPage() {
                 Import
               </Button>
             </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-8 h-8 bg-[#1E1E1E] border border-[#2A2A2A] rounded-[4px] flex items-center justify-center">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[#4A4640]">
-                    <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z" stroke="currentColor" strokeWidth="1.5" />
-                    <path d="M22 6l-10 7L2 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-                  </svg>
+
+            {/* Gmail */}
+            <div className="border-t border-[#1F1F1F] pt-3">
+              {gmailStatus.loading ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[#1E1E1E] border border-[#2A2A2A] rounded-[4px] animate-pulse" />
+                    <div className="space-y-1">
+                      <div className="h-3 w-16 bg-[#1E1E1E] rounded animate-pulse" />
+                      <div className="h-2.5 w-24 bg-[#1E1E1E] rounded animate-pulse" />
+                    </div>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-medium text-[#8A8578] font-body">Gmail</p>
-                  <p className="text-[11px] text-[#4A4640] font-body">Coming soon — requires Pro</p>
+              ) : gmailStatus.connected ? (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[#0D1A0D] border border-[#4A8C5C]/30 rounded-[4px] flex items-center justify-center">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[#4A8C5C]">
+                        <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M22 6l-10 7L2 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-medium text-[#8A8578] font-body">Gmail</p>
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#4A8C5C]" />
+                        <span className="text-[10px] text-[#4A8C5C] font-body">Connected</span>
+                      </div>
+                      {gmailStatus.email && (
+                        <p className="text-[11px] text-[#4A4640] font-body">{gmailStatus.email}</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => router.push("/gmail-import")}
+                    >
+                      Sync contacts
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleDisconnectGmail}
+                      disabled={disconnecting}
+                      className="text-[#4A4640] hover:text-red-400"
+                    >
+                      {disconnecting ? "…" : "Disconnect"}
+                    </Button>
+                  </div>
                 </div>
-              </div>
-              <Badge variant="muted">Pro</Badge>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 bg-[#1E1E1E] border border-[#2A2A2A] rounded-[4px] flex items-center justify-center">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" className="text-[#4A4640]">
+                        <path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2z" stroke="currentColor" strokeWidth="1.5" />
+                        <path d="M22 6l-10 7L2 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                      </svg>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-[#8A8578] font-body">Gmail</p>
+                      <p className="text-[11px] text-[#4A4640] font-body">Import contacts from Google</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => router.push("/api/auth/google")}
+                  >
+                    Connect
+                  </Button>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
