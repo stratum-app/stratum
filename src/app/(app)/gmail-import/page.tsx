@@ -275,7 +275,7 @@ function GmailImportInner() {
                 <Button
                   variant="primary"
                   size="sm"
-                  onClick={() => router.push("/api/auth/google")}
+                  onClick={() => { window.location.href = "/api/auth/google"; }}
                 >
                   Try again
                 </Button>

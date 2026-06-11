@@ -343,7 +343,7 @@ export default function SettingsPage() {
                   <Button
                     variant="primary"
                     size="sm"
-                    onClick={() => router.push("/api/auth/google")}
+                    onClick={() => { window.location.href = "/api/auth/google"; }}
                   >
                     Connect
                   </Button>
