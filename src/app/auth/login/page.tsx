@@ -12,6 +12,7 @@ export default function LoginPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
@@ -34,6 +35,23 @@ export default function LoginPage() {
 
     router.push("/dashboard");
     router.refresh();
+  }
+
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true);
+    setError(null);
+    const supabase = createClient();
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "google",
+      options: {
+        redirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) {
+      setError(error.message);
+      setGoogleLoading(false);
+    }
+    // On success the browser navigates to Google — no cleanup needed
   }
 
   return (
@@ -108,13 +126,22 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <Button variant="outline" size="md" className="w-full gap-3" type="button">
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-              <path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.6 2.41v2h2.6c1.52-1.4 2.38-3.46 2.38-5.87z" fill="#4285F4"/>
-              <path d="M8 16c2.16 0 3.97-.72 5.3-1.94l-2.6-2c-.71.48-1.63.76-2.7.76-2.08 0-3.84-1.4-4.47-3.29H.86v2.06A8 8 0 008 16z" fill="#34A853"/>
-              <path d="M3.53 9.53A4.82 4.82 0 013.28 8c0-.53.09-1.04.25-1.53V4.41H.86A8 8 0 000 8c0 1.29.31 2.51.86 3.59l2.67-2.06z" fill="#FBBC05"/>
-              <path d="M8 3.18c1.17 0 2.22.4 3.05 1.2l2.28-2.28A8 8 0 00.86 4.41L3.53 6.47C4.16 4.58 5.92 3.18 8 3.18z" fill="#EA4335"/>
-            </svg>
+          <Button
+            variant="outline"
+            size="md"
+            className="w-full gap-3"
+            type="button"
+            loading={googleLoading}
+            onClick={handleGoogleSignIn}
+          >
+            {!googleLoading && (
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <path d="M15.68 8.18c0-.57-.05-1.11-.14-1.64H8v3.1h4.3a3.67 3.67 0 01-1.6 2.41v2h2.6c1.52-1.4 2.38-3.46 2.38-5.87z" fill="#4285F4"/>
+                <path d="M8 16c2.16 0 3.97-.72 5.3-1.94l-2.6-2c-.71.48-1.63.76-2.7.76-2.08 0-3.84-1.4-4.47-3.29H.86v2.06A8 8 0 008 16z" fill="#34A853"/>
+                <path d="M3.53 9.53A4.82 4.82 0 013.28 8c0-.53.09-1.04.25-1.53V4.41H.86A8 8 0 000 8c0 1.29.31 2.51.86 3.59l2.67-2.06z" fill="#FBBC05"/>
+                <path d="M8 3.18c1.17 0 2.22.4 3.05 1.2l2.28-2.28A8 8 0 00.86 4.41L3.53 6.47C4.16 4.58 5.92 3.18 8 3.18z" fill="#EA4335"/>
+              </svg>
+            )}
             Continue with Google
           </Button>
         </div>
